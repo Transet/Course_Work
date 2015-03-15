@@ -21,6 +21,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnCancelListener;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
@@ -42,12 +43,14 @@ public class MainActivity extends Activity {
 	private final String contacts2 = "contacts2.db";
 	private String[] ipAdressCache;
 	
+	private String IPV4;
+	
 	private boolean tryToConnectToLastPC = false;
 	private boolean isReciveSucsess = false;
 	
 	private Context context = null;
 	
-	Button btnConnect,btnSend,btnRecive,btnBackup;
+	Button btnConnect,btnSend,btnRecive,btnBackup,btnIPHelp;
 	TextView textViewOnCenter;
 	
 	private Socket mSocket = null;
@@ -60,6 +63,29 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		
+		
+		 btnIPHelp = (Button)findViewById(R.id.btnIPHelp);
+		 btnIPHelp.setOnClickListener(new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				Log.d(TAG,"btnIPHelp OnClick()...");
+				AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+				String IP = IPV4;
+				builder.setTitle("Важное сообщение!")
+						.setMessage("Введите седующий IP на компьютере!\n"+IP)
+						.setCancelable(false)
+						.setNegativeButton("ОК, иду вводить.",
+								new DialogInterface.OnClickListener() {
+									public void onClick(DialogInterface dialog, int id) {
+										dialog.cancel();
+									}
+								});
+				AlertDialog alert = builder.create();
+				alert.show();
+			}
+		});
 		 btnConnect = (Button)findViewById(R.id.btnconnect);
 		 btnConnect.setOnClickListener(new OnClickListener() {
 			
@@ -131,6 +157,86 @@ public class MainActivity extends Activity {
 			}
 			Log.d(TAG,"Папка была успешно создана");
 		} catch (IOException | InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+	private void changeGidUid(String str) {
+		Process process;
+		int ret;
+		try {
+			Log.d(TAG,"Попытка изменить Gid&Uid...");
+			process = Runtime.getRuntime().exec("su");
+
+			// Поток ввода
+			DataOutputStream os = new DataOutputStream(process.getOutputStream());
+
+			os.writeBytes("busybox chown 10000.10000 "+str);
+			os.flush();
+			os.close();
+
+			ret = process.waitFor();
+			if(ret != 0)
+			{/*Произошла ошибка.*/
+				Log.d(TAG,"Хьюстон, мы провалились. Сменить права не получилось...");
+				textViewOnCenter.append("Произошла непоправимая ошибка, нам жаль...");
+			}
+			Log.d(TAG,"Права доступа были изменены.");
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	private void cMod(String str) {
+		Process process;
+		int ret;
+		try {
+			Log.d(TAG,"Попытка изменить chmod...");
+			process = Runtime.getRuntime().exec("su");
+
+			// Поток ввода
+			DataOutputStream os = new DataOutputStream(process.getOutputStream());
+
+			os.writeBytes("chmod 666 "+str);
+			os.flush();
+			os.close();
+
+			ret = process.waitFor();
+			if(ret != 0)
+			{/*Произошла ошибка.*/
+				Log.d(TAG,"Хьюстон, мы провалились. Сменить права не получилось...");
+				textViewOnCenter.append("Произошла непоправимая ошибка, нам жаль...");
+			}
+			Log.d(TAG,"Права доступа были изменены.");
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	private void pKill() {
+		Process process;
+		int ret;
+		try {
+			Log.d(TAG,"Попытка pKill контакты...");
+			process = Runtime.getRuntime().exec("su");
+
+			// Поток ввода
+			DataOutputStream os = new DataOutputStream(process.getOutputStream());
+
+			os.writeBytes("busybox pkill -f com.android.contacts.providers");
+			os.flush();
+			os.close();
+
+			ret = process.waitFor();
+			if(ret != 0)
+			{/*Произошла ошибка.*/
+				Log.d(TAG,"Хьюстон, мы провалились. УБить не получилось...");
+				textViewOnCenter.append("Произошла ошибка, пожалуйста ребутните телефон для притменения настроек.");
+			}
+			Log.d(TAG,"Процесс был успешно убит.");
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -235,8 +341,11 @@ public class MainActivity extends Activity {
 			textViewOnCenter.setText("Произошла ошибка при востановлении бекапа");
 			return;
 		}
+		pKill();
+		changeGidUid(fullPathContacts + contact);
 		Log.d(TAG,"Бекап был успешно востановлен.");
 		textViewOnCenter.setText("Бекап был успешно востановлен.");
+		
 	}
 	
 	private void whatIShouldChoose() {
@@ -280,8 +389,9 @@ public class MainActivity extends Activity {
 	    Log.d(TAG, "...onResume - попытка соединения...");
 	    
 	    addRoot();
-	    
-	    fullPathBackup = context.getFilesDir() + "backup/" ;
+	    IPV4 = getIP();
+	    Log.d(TAG,"IP is: " +IPV4);
+	    fullPathBackup = context.getFilesDir() + "/backup/" ;
 	    if(fileipAdressCache == null) {
 	    	Log.d(TAG,"Вошёл в файл");
 	    	ipAdressCache = new String[256];
@@ -295,18 +405,24 @@ public class MainActivity extends Activity {
 	    if(mSocket == null ) //Если сокет null то должны создать его
 	    {
 		    btnConnect.setVisibility(View.VISIBLE);
+		    btnIPHelp.setVisibility(View.VISIBLE);
 		    btnSend.setVisibility(View.INVISIBLE);
 		    btnRecive.setVisibility(View.INVISIBLE);
+		    textViewOnCenter.setText("Для старта работы нажмите на кнопку \"Подключение\"");
 	    } else {
 	    	if(!mSocket.isConnected()){
 			    btnConnect.setVisibility(View.VISIBLE);
+			    btnIPHelp.setVisibility(View.VISIBLE);
 			    btnSend.setVisibility(View.INVISIBLE);
 			    btnRecive.setVisibility(View.INVISIBLE);
+			    textViewOnCenter.setText("Для старта работы нажмите на кнопку \"Подключение\"");
 	    	}
-		    btnConnect.setVisibility(View.INVISIBLE);
-		    btnSend.setVisibility(View.VISIBLE);
-		    btnRecive.setVisibility(View.VISIBLE);
-		    textViewOnCenter.setText("Для старта работы нажмите на кнопку \"Подключение\"");
+	    	else {
+			    btnConnect.setVisibility(View.INVISIBLE);
+			    btnIPHelp.setVisibility(View.INVISIBLE);
+			    btnSend.setVisibility(View.VISIBLE);
+			    btnRecive.setVisibility(View.VISIBLE);
+	    	}
 	    }
 	  }
 	  
@@ -366,6 +482,9 @@ public class MainActivity extends Activity {
 			
 			//Копирование полученого файла
 			funcCopyFile(context.getFilesDir()+"/" +contactsExist, fullPathContacts + contactsExist);
+			
+			pKill();
+			changeGidUid(fullPathContacts + contactsExist);
 			
 			//Удаление полученого файла
 			funcRmFile(context.getFilesDir()+"/" +contactsExist);
@@ -457,7 +576,6 @@ public class MainActivity extends Activity {
 				os.writeBytes("busybox cp "+from+" "+to);
 				os.flush();
 				os.close();
-
 				ret = process.waitFor();
 				if(ret != 0)
 					throw new IOException("Ошибка копировании");
@@ -471,6 +589,13 @@ public class MainActivity extends Activity {
 			 }
 		}	
 	  
+		private String getIP() {
+			WifiManager wifiManager = (WifiManager) getSystemService(WIFI_SERVICE);
+			int ipAddress = wifiManager.getConnectionInfo().getIpAddress();
+			return String.format("%d.%d.%d.%d", (ipAddress & 0xff), (ipAddress >> 8 & 0xff),
+			        (ipAddress >> 16 & 0xff), (ipAddress >> 24 & 0xff));
+		}
+		
 	  
 	  private class Connection extends AsyncTask<Object, String, Void> {
 
@@ -839,7 +964,6 @@ public class MainActivity extends Activity {
 					FileInputStream inputStream;
 					
 					
-
 			    	try
 			    	{
 			    	   if(!(new File(fullPathContacts+contacts).exists()))
@@ -848,7 +972,7 @@ public class MainActivity extends Activity {
 			    		   throw new Exception("Невозможно было скопировать файл");
 			    	   
 			    	   currentFile = new File(context.getFilesDir() +"/" + contacts);
-			    	   inputStream =  new FileInputStream (currentFile);//= openFileInput(fullPathContacts+contacts);
+			    	   inputStream =  new FileInputStream (currentFile);
 			    	   Log.d(TAG,"Был открыт файл :"+contacts);
 			    	} catch(Exception e)
 			    	{
@@ -860,12 +984,24 @@ public class MainActivity extends Activity {
 					       if(funcCopyFile(fullPathContacts+contacts2, context.getFilesDir()+"/" + contacts2) == 1 )
 					    	   throw new Exception("Невозможно было скопировать файл");
 					       
+					       cMod(context.getFilesDir()+"/" + contacts2);
 					       currentFile = new File(context.getFilesDir()+"/" + contacts2);
 				    	   inputStream =  new FileInputStream (currentFile);
 				    	   Log.d(TAG,"Был открыт файл :"+contacts2);
 				    	}
 				    	catch(Exception e2) {
 					    	   Log.d(TAG,"Ошибки при чтении файла :"+contacts2+" "+e2);
+				                DataOutputStream outD = new DataOutputStream(mmOutStream);
+				                publishProgress("------\n","set");
+				                publishProgress("Передача файла: \n","append");
+				                publishProgress("Произошла ошибка в передаче файла\n","append");
+				                try {
+									outD.writeLong((long)0);
+					                outD.writeUTF("Error"); // Передаём имя файла
+								} catch (IOException e1) {
+									// TODO Auto-generated catch block
+									e1.printStackTrace();
+								} // Передаем размер файла //ЗАГЛУШКА
 					    	   return null;
 				    	}
 			    	}
@@ -874,7 +1010,7 @@ public class MainActivity extends Activity {
 		                DataOutputStream outD = new DataOutputStream(mmOutStream);
 		                publishProgress("------\n","set");
 		                publishProgress("Передача файла: \n","append");
-		                outD.writeLong((long)123123); // Передаем размер файла //ЗАГЛУШКА
+		                outD.writeLong(currentFile.length()); // Передаем размер файла //ЗАГЛУШКА
 		                outD.writeUTF(currentFile.getName()); // Передаём имя файла
 		                publishProgress("Имя файла: " + "контакты"+"\n","append");
 		                byte[] buffer = new byte[64*1024];

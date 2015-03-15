@@ -25,7 +25,7 @@
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
     <Button
-        android:id="@+id/btnRecive"
+        android:id="@+id/btnSend"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentLeft="true"
@@ -37,13 +37,13 @@
         android:id="@+id/btnBackup"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignLeft="@+id/btnSend"
+        android:layout_alignLeft="@+id/btnRecive"
         android:layout_alignParentTop="true"
-        android:layout_alignRight="@+id/btnSend"
+        android:layout_alignRight="@+id/btnRecive"
         android:text="Backup" />
 
     <Button
-        android:id="@+id/btnSend"
+        android:id="@+id/btnRecive"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentRight="true"
@@ -51,5 +51,15 @@
         android:layout_marginLeft="26dp"
         android:layout_toRightOf="@+id/btnconnect"
         android:text="Принять данные" />
+
+    <Button
+        android:id="@+id/btnIPHelp"
+        style="?android:attr/buttonStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/btnconnect"
+        android:layout_toLeftOf="@+id/btnBackup"
+        android:layout_toRightOf="@+id/btnconnect"
+        android:text="\?" />
     
 </RelativeLayout>

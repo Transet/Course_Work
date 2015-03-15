@@ -15,8 +15,9 @@ public final class R {
     }
     public static final class id {
         public static final int btnBackup=0x7f060003;
-        public static final int btnRecive=0x7f060002;
-        public static final int btnSend=0x7f060004;
+        public static final int btnIPHelp=0x7f060005;
+        public static final int btnRecive=0x7f060004;
+        public static final int btnSend=0x7f060002;
         public static final int btnconnect=0x7f060000;
         public static final int textView1=0x7f060001;
     }
