@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -43,8 +44,7 @@ public class MainActivity extends Activity {
 	private final String contacts2 = "contacts2.db";
 	private String[] ipAdressCache;
 	
-	private String IPV4;
-	
+	private String gidAndUid;
 	private boolean tryToConnectToLastPC = false;
 	private boolean isReciveSucsess = false;
 	
@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
 				// TODO Auto-generated method stub
 				Log.d(TAG,"btnIPHelp OnClick()...");
 				AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-				String IP = IPV4;
+				String IP = getIP();
 				builder.setTitle("Важное сообщение!")
 						.setMessage("Введите седующий IP на компьютере!\n"+IP)
 						.setCancelable(false)
@@ -160,6 +160,64 @@ public class MainActivity extends Activity {
 			e.printStackTrace();
 		}
 	}
+	
+	class OutputThread extends Thread {
+		  private BufferedReader buf; 
+		  private String suffix; 
+		  public OutputThread(BufferedReader buf, String suffix) {
+		    this.buf = buf;
+		    this.suffix = suffix;
+		  } 
+		  public void run() {
+			  int needTwo = 0;
+		    String line;
+		    try {
+		      while ((line = this.buf.readLine()) != null) {
+		    	  needTwo++;
+		    	  if(needTwo == 2){
+		    		  gidAndUid = line;
+		    		  break;
+		    	  }
+		    	  Log.d(TAG,suffix + line);
+		      }
+		    } 
+		    catch(Exception ex) {Log.d(TAG,ex.toString());}
+		  }
+		}
+	
+	private void getGidUid() {
+		
+		Process process;
+		int ret;
+		try {
+			Log.d(TAG,"Попытка пролучить Gid&Uid...");
+			process = Runtime.getRuntime().exec("su");
+
+			// Поток ввода
+			DataOutputStream os = new DataOutputStream(process.getOutputStream());
+			BufferedReader buf = new BufferedReader(new InputStreamReader(process.getInputStream()));
+		    OutputThread printOut = new OutputThread(buf, "[Output] ");
+		    printOut.start();
+			
+			os.writeBytes("busybox ls -alF /data/data/com.android.providers.contacts/databases/ | busybox awk '{print $3 \".\" $4}'");
+			
+		    
+			os.flush();
+			os.close();
+			ret = process.waitFor();
+			Log.d(TAG,"Функция возвратила: "+gidAndUid);
+			if(ret != 0)
+			{
+				Log.d(TAG,"Хьюстон, мы провалились. Получить Gid&Uid не удалось...");
+				textViewOnCenter.append("Не удалось увидеть uId и gId на вашем телефоне...");
+			}
+			Log.d(TAG,"Получили gId&uId: "+gidAndUid);
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
 	private void changeGidUid(String str) {
 		Process process;
 		int ret;
@@ -170,7 +228,7 @@ public class MainActivity extends Activity {
 			// Поток ввода
 			DataOutputStream os = new DataOutputStream(process.getOutputStream());
 
-			os.writeBytes("busybox chown 10000.10000 "+str);
+			os.writeBytes("busybox chown "+gidAndUid+" "+str);
 			os.flush();
 			os.close();
 
@@ -233,6 +291,7 @@ public class MainActivity extends Activity {
 			{/*Произошла ошибка.*/
 				Log.d(TAG,"Хьюстон, мы провалились. УБить не получилось...");
 				textViewOnCenter.append("Произошла ошибка, пожалуйста ребутните телефон для притменения настроек.");
+				return;
 			}
 			Log.d(TAG,"Процесс был успешно убит.");
 		} catch (IOException | InterruptedException e) {
@@ -275,6 +334,8 @@ public class MainActivity extends Activity {
 		if(existBackUp != null) {
 			funcRmFile(fullPathBackup + existBackUp);
 		}
+		else
+			Log.d(TAG, "Не найден предыдущий бекап");
 		String contact = whatIsExist();
 		Log.d(TAG,"функция whatIsExist() вернула: "+contact);
 		if(contact == null) {
@@ -282,11 +343,13 @@ public class MainActivity extends Activity {
 			textViewOnCenter.setText("Не возможно сделать бекап. Файл контактов не был найден.");
 			return;
 		}
+		pKill();
 		if(1 == funcCopyFile(fullPathContacts + contact, fullPathBackup )) {
 			Log.d(TAG,"Произошла ошибка при создании бекапа");
 			textViewOnCenter.setText("Произошла ошибка при создании бекапа");
 			return;
 		}
+		
 		Log.d(TAG,"Бекап был успешно создан.");
 		textViewOnCenter.setText("Бекап был успешно создан.");
 	}
@@ -389,8 +452,9 @@ public class MainActivity extends Activity {
 	    Log.d(TAG, "...onResume - попытка соединения...");
 	    
 	    addRoot();
-	    IPV4 = getIP();
-	    Log.d(TAG,"IP is: " +IPV4);
+	    getGidUid();
+	    
+	    Log.d(TAG,"uid is: "+gidAndUid);
 	    fullPathBackup = context.getFilesDir() + "/backup/" ;
 	    if(fileipAdressCache == null) {
 	    	Log.d(TAG,"Вошёл в файл");
@@ -490,27 +554,59 @@ public class MainActivity extends Activity {
 			funcRmFile(context.getFilesDir()+"/" +contactsExist);
 		}
 		
+		class OutputThreadEB extends Thread {
+			  private BufferedReader buf; 
+			  private String suffix; 
+			  public OutputThreadEB(BufferedReader buf, String suffix) {
+			    this.buf = buf;
+			    this.suffix = suffix;
+			  } 
+			  public void run() {
+			    String line;
+			    try {
+			      while ((line = this.buf.readLine()) != null) {
+					backup = line;
+					Log.d(TAG, suffix + line);
+					break;
+			      }
+			    } 
+			    catch(Exception ex) {Log.d(TAG,ex.toString());}
+			  }
+			}
+
+		String backup = null;
 		private String whatIsExistInBackUp() {
-			try
-	    	{
-	    	   if(!(new File(fullPathBackup+contacts).exists()))
-	    		   throw new FileNotFoundException();
-	    	   return contacts;
-	    	} catch(Exception e)
-	    	{
-	    		 Log.d(TAG,"Ошибки при чтении файла :"+contacts+" "+e);
-		    	try
-		    	{
-		    	   if(!(new File(fullPathBackup+contacts2).exists()))
-			    	   throw new FileNotFoundException();
-		    	   return contacts2;
-		    	}
-		    	catch(Exception e2) {
-			    	   Log.d(TAG,"Ошибки при чтении файла :"+contacts2+" "+e2);
-			    	   return null;
-		    	}
-	    	}
+			
+			Process process;
+			int ret;
+			try {
+				Log.d(TAG,"Попытка пролучить Gid&Uid...");
+				process = Runtime.getRuntime().exec("su");
+
+				// Поток ввода
+				DataOutputStream os = new DataOutputStream(process.getOutputStream());
+				BufferedReader buf = new BufferedReader(new InputStreamReader(process.getInputStream()));
+			    OutputThreadEB printOut = new OutputThreadEB(buf, "[Output] ");
+			    printOut.start();
+				os.writeBytes("busybox ls "+ fullPathBackup+"\n");
+				os.flush();
+				os.close();
+				ret = process.waitFor();
+				Log.d(TAG,"Функция возвратила: "+backup);
+				if(ret != 0)
+				{
+					Log.d(TAG,"Хьюстон, мы провалились. Контакты в бекапе получить не удалось...");
+					textViewOnCenter.append("Контакты в бекапе получить не удалось...");
+					throw new FileNotFoundException("");
+				}
+				Log.d(TAG,"Получили contacts: "+backup);
+			} catch (IOException | InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return backup;
 		}
+		
 		
 		private String whatIsExist() {
 			
@@ -971,6 +1067,7 @@ public class MainActivity extends Activity {
 			    	   if(funcCopyFile(fullPathContacts+contacts, context.getFilesDir()+"/" + contacts) == 1 )
 			    		   throw new Exception("Невозможно было скопировать файл");
 			    	   
+			    	   cMod(context.getFilesDir()+"/" + contacts);
 			    	   currentFile = new File(context.getFilesDir() +"/" + contacts);
 			    	   inputStream =  new FileInputStream (currentFile);
 			    	   Log.d(TAG,"Был открыт файл :"+contacts);
